@@ -12,6 +12,18 @@ const server = http.createServer(app)
 const { Server } = require('socket.io')
 const io = new Server(server, { cors: { origin: '*' } })
 
+const log = (...args) => { if (process.env.NODE_ENV !== 'test') console.log(...args) }
+log('Starting server')
+
+server.on('error', (err) => {
+  if (err && err.code === 'EADDRINUSE') {
+    log('Port in use, selecting a free port')
+    server.close(() => {
+      server.listen(0, () => {})
+    })
+  }
+})
+
 if (!fs.existsSync(path.join(__dirname, 'uploads'))) fs.mkdirSync(path.join(__dirname, 'uploads'), { recursive: true })
 
 app.use(cors())
@@ -61,11 +73,18 @@ app.use(errorHandler)
 const port = process.env.PORT || 5000
 const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/alertnet_db'
 
+log('Connecting to database')
 connectDB(uri)
   .then(() => {
-    server.listen(port, () => {})
+    log('Database connected')
+    server.listen(port, () => {
+      const addr = server.address()
+      const p = typeof addr === 'string' ? addr : addr.port
+      log(`HTTP server listening on port ${p}`)
+    })
   })
   .catch(() => {
+    log('Database connection failed')
     if (process.env.NODE_ENV !== 'test') process.exit(1)
   })
 
